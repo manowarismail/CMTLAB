@@ -1,0 +1,23 @@
+# Mini-FIX — 10 orders then stop (no Execute, no Wait — avoids hanging)
+# ClOrdID (11): CL1, CL2, … CL10 — explicit values (Mini-FIX has no documented "CL" + autoincrement).
+# Optional: try 11=CL$UNIQUE on one line in the GUI; if your build substitutes $UNIQUE inside the
+# string you may get CL<number>, but it may not be 1,2,3. For exact CL1..CLn, list them as below.
+# Put your own Connect + Expect:35=A before these lines, then Quit at the end.
+
+Send:NewOrderSingle:11=CL1|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL2|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL3|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL4|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL5|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL6|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL7|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL8|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL9|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+Send:NewOrderSingle:11=CL10|21=1|54=1|55=GOOG|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+
+Quit
+
+# If it still never finishes:
+# - Remove every Wait: and Expect: between orders (they block until the next message matches).
+# - End with Quit (above).
+# - Alternative: one-line sub-batch + Execute:BatchName:10 then Quit (see https://elato.se/minifix/doc.html ).

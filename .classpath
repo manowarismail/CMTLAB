@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-21"/>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="lib" path="C:/Users/HP/quickfix/org.quickfixj-2.3.1/quickfixj-all-2.3.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/HP/quickfix/org.quickfixj-2.3.1/quickfixj-messages-all-2.3.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/HP/slf4j-api-1.7.36.jar"/>
+	<classpathentry kind="lib" path="C:/Users/HP/slf4j-simple-1.6.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/HP/apache-mina-2.0.27/dist/mina-core-2.0.27.jar"/>
+	<classpathentry kind="lib" path="C:/Users/HP/quickfix/org.quickfixj-2.3.1/quickfixj-messages-fix44-2.3.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/HP/OneDrive/Documents/Downloads/gson-2.8.9.jar"/>
+	<classpathentry kind="lib" path="C:/Users/HP/OneDrive/Documents/Downloads/Java-WebSocket-1.5.5.jar"/>
+	<classpathentry kind="lib" path="lib/mysql-connector-j-8.3.0.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
