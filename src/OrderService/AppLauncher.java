@@ -36,11 +36,14 @@ public class AppLauncher {
             persisterThreadRef.set(persisterThread);
             persisterThread.start();
 
-            OrderBroadcaster server = new OrderBroadcaster(8080);
+            int wsPort = Integer.parseInt(System.getProperty("order.ws.port", "9080"));
+            OrderBroadcaster server = new OrderBroadcaster(wsPort);
             serverRef.set(server);
             server.start();
+            System.out.println("WebSocket server listening on port " + wsPort + " (override with -Dorder.ws.port=...).");
 
             OrderApplication application = new OrderApplication(server, dbQueue);
+            application.onStart();
 
             SessionSettings settings = new SessionSettings("order-service.cfg");
             MemoryStoreFactory storeFactory = new MemoryStoreFactory();

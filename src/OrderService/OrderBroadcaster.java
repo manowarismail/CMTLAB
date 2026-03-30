@@ -6,6 +6,8 @@ import org.java_websocket.handshake.ClientHandshake;
 import java.net.InetSocketAddress;
 import com.google.gson.Gson;
 
+import quickfix.FieldNotFound;
+import quickfix.Message;
 import quickfix.Session;
 import quickfix.SessionID;
 import quickfix.field.AvgPx;
@@ -14,11 +16,19 @@ import quickfix.field.CumQty;
 import quickfix.field.ExecID;
 import quickfix.field.ExecTransType;
 import quickfix.field.LeavesQty;
+import quickfix.field.MsgSeqNum;
+import quickfix.field.MsgType;
 import quickfix.field.OrdStatus;
 import quickfix.field.OrderID;
+import quickfix.field.RefMsgType;
+import quickfix.field.RefSeqNum;
+import quickfix.field.RefTagID;
+import quickfix.field.SessionRejectReason;
 import quickfix.field.Side;
 import quickfix.field.Symbol;
+import quickfix.field.Text;
 import quickfix.fix42.ExecutionReport;
+import quickfix.fix42.Reject;
 
 public class OrderBroadcaster extends WebSocketServer {
 
@@ -58,6 +68,28 @@ public class OrderBroadcaster extends WebSocketServer {
     public void acceptOrder(Order order, SessionID sessionId) {
         sendFixAck(order, sessionId);
         broadcastOrder(order);
+    }
+
+    public void sendSessionReject(Message refAppMessage, SessionID sessionId, String reasonText) {
+        try {
+            int refSeq = refAppMessage.getHeader().getInt(MsgSeqNum.FIELD);
+            String refMsgType = refAppMessage.getHeader().getString(MsgType.FIELD);
+            Reject reject = new Reject();
+            reject.set(new RefSeqNum(refSeq));
+            reject.set(new RefMsgType(refMsgType));
+            reject.set(new RefTagID(Symbol.FIELD));
+            reject.set(new SessionRejectReason(SessionRejectReason.VALUE_IS_INCORRECT));
+            reject.set(new Text(reasonText));
+            Session.sendToTarget(reject, sessionId);
+            System.out.println("[OrderBroadcaster] Session Reject (35=3) refSeq=" + refSeq + " refMsgType=" + refMsgType
+                    + " text=" + reasonText);
+        } catch (FieldNotFound e) {
+            System.err.println("[OrderBroadcaster] Cannot build Session Reject (missing header field): " + e.getMessage());
+            e.printStackTrace();
+        } catch (Exception e) {
+            System.err.println("[OrderBroadcaster] Failed to send Session Reject");
+            e.printStackTrace();
+        }
     }
 
     private void sendFixAck(Order order, SessionID sessionId) {

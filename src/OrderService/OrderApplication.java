@@ -1,5 +1,9 @@
 package OrderService;
 
+import java.sql.SQLException;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
 import quickfix.Application;
@@ -15,10 +19,26 @@ public class OrderApplication extends MessageCracker implements Application {
 
     private final OrderBroadcaster server;
     private final BlockingQueue<Order> dbQueue;
+    private final Map<String, Security> validSecurities = new HashMap<>();
 
     public OrderApplication(OrderBroadcaster server, BlockingQueue<Order> dbQueue) {
         this.server = server;
         this.dbQueue = dbQueue;
+    }
+
+    public void onStart() {
+        reloadSecurityMaster();
+    }
+
+    private void reloadSecurityMaster() {
+        validSecurities.clear();
+        try {
+            validSecurities.putAll(JdbcOrderStore.loadSecurityMaster());
+            System.out.println("[OrderApplication] security_master in memory: " + validSecurities.size() + " row(s).");
+        } catch (SQLException e) {
+            System.err.println("[OrderApplication] Failed to load security_master; unknown-symbol rejects until fixed.");
+            JdbcOrderStore.logSql(e);
+        }
     }
 
     @Override
@@ -51,7 +71,9 @@ public class OrderApplication extends MessageCracker implements Application {
     public void onLogout(SessionID sessionId) {}
 
     @Override
-    public void onLogon(SessionID sessionId) {}
+    public void onLogon(SessionID sessionId) {
+        reloadSecurityMaster();
+    }
 
     @Override
     public void toAdmin(Message message, SessionID sessionId) {}
@@ -67,12 +89,7 @@ public class OrderApplication extends MessageCracker implements Application {
             throw new UnsupportedMessageType();
         }
         try {
-            String clOrdID = message.getString(11);
-            String symbol = message.getString(55);
-            char side = message.getChar(54);
-            double price = message.isSetField(44) ? message.getDouble(44) : 0.0;
-            double quantity = message.getDouble(38);
-            handleNewOrderSingle(clOrdID, symbol, side, price, quantity, sessionId);
+            handleNewOrderSingle(message, sessionId);
         } catch (FieldNotFound e) {
             System.err.println("[OrderApplication] NewOrderSingle missing field tag: " + e.field);
             throw e;
@@ -80,17 +97,23 @@ public class OrderApplication extends MessageCracker implements Application {
     }
 
     public void onMessage(NewOrderSingle orderMsg, SessionID sessionId) throws FieldNotFound {
-        String clOrdID = orderMsg.getClOrdID().getValue();
-        String symbol = orderMsg.getSymbol().getValue();
-        char side = orderMsg.getSide().getValue();
-        double price = orderMsg.getPrice().getValue();
-        double quantity = orderMsg.getOrderQty().getValue();
-        handleNewOrderSingle(clOrdID, symbol, side, price, quantity, sessionId);
+        handleNewOrderSingle(orderMsg, sessionId);
     }
 
-    private void handleNewOrderSingle(String clOrdID, String symbol, char side, double price, double quantity,
-            SessionID sessionId) {
+    private void handleNewOrderSingle(Message incoming, SessionID sessionId) throws FieldNotFound {
+        String clOrdID = incoming.getString(11);
+        String symbol = incoming.getString(55);
+        char side = incoming.getChar(54);
+        double price = incoming.isSetField(44) ? incoming.getDouble(44) : 0.0;
+        double quantity = incoming.getDouble(38);
         try {
+            String symKey = symbol == null ? "" : symbol.trim().toUpperCase(Locale.ROOT);
+            if (!validSecurities.containsKey(symKey)) {
+                System.out.println("[OrderApplication] Reject: symbol key='" + symKey + "' not in map (size="
+                        + validSecurities.size() + "). Restart or reconnect FIX after changing security_master.");
+                server.sendSessionReject(incoming, sessionId, "Unknown Security");
+                return;
+            }
             Order order = new Order(clOrdID, symbol, side, price, quantity, "NEW");
             server.acceptOrder(order, sessionId);
             if (!dbQueue.offer(order)) {

@@ -7,7 +7,7 @@ set "CP=bin;lib\mysql-connector-j-8.3.0.jar;C:\Users\HP\quickfix\org.quickfixj-2
 if not exist "bin\OrderService\AppLauncher.class" (
   echo Compiling into bin\ ...
   if not exist bin mkdir bin
-  "C:\Program Files\Java\jdk-21\bin\javac.exe" -d bin -cp "%CP%" --source-path src src\OrderService\*.java
+  "C:\Program Files\Java\jdk-21\bin\javac.exe" -d bin -cp "%CP%" src\OrderService\*.java
   if errorlevel 1 exit /b 1
 )
 

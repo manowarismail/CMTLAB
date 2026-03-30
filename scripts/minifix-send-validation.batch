@@ -1,0 +1,6 @@
+# After Connect + Expect:35=A (logon), run this batch.
+# Expect Session Reject (35=3) with 58=Unknown Security for INVALID_CO if symbol is not in security_master.
+
+Send:NewOrderSingle:11=CL_INVALID|21=1|54=1|55=INVALID_CO|38=100|40=2|44=50|59=0|60=$TIMESTAMP
+
+Quit

@@ -11,6 +11,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 
 public final class JdbcOrderStore {
@@ -142,6 +145,31 @@ public final class JdbcOrderStore {
         }
     }
 
+    public static Map<String, Security> loadSecurityMaster() throws SQLException {
+        Map<String, Security> map = new HashMap<>();
+        String sql = "SELECT symbol, security_type, description, underlying, lot_size FROM security_master";
+        try (Connection conn = openConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql);
+                ResultSet rs = pstmt.executeQuery()) {
+            while (rs.next()) {
+                String sym = rs.getString("symbol");
+                if (sym == null) {
+                    continue;
+                }
+                String key = sym.trim().toUpperCase(Locale.ROOT);
+                String type = rs.getString("security_type");
+                String desc = rs.getString("description");
+                String und = rs.getString("underlying");
+                int lot = rs.getInt("lot_size");
+                if (rs.wasNull()) {
+                    lot = 100;
+                }
+                map.put(key, new Security(key, type, desc, und, lot));
+            }
+        }
+        return map;
+    }
+
     public static void insertOrder(Order order) {
         String sql = "INSERT INTO orders (order_id, cl_ord_id, symbol, side, price, quantity, status) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -167,7 +195,7 @@ public final class JdbcOrderStore {
         }
     }
 
-    private static void logSql(SQLException e) {
+    static void logSql(SQLException e) {
         for (SQLException x = e; x != null; x = x.getNextException()) {
             System.err.println("[JdbcOrderStore] SQLState=" + x.getSQLState() + " code=" + x.getErrorCode() + " msg=" + x.getMessage());
             x.printStackTrace();
