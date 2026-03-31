@@ -38,6 +38,7 @@ public class OrderApplication extends MessageCracker implements Application {
     private final BlockingQueue<Object> dbQueue;
     private final Map<String, Security> validSecurities = new HashMap<>();
     private final Map<String, OrderBook> booksBySymbol = new ConcurrentHashMap<>();
+    private final ThreadLocal<Long> ingressNanos = new ThreadLocal<>();
 
     public OrderApplication(OrderBroadcaster server, BlockingQueue<Object> dbQueue) {
         this.server = server;
@@ -64,6 +65,8 @@ public class OrderApplication extends MessageCracker implements Application {
 
     @Override
     public void fromApp(Message message, SessionID sessionId) {
+        long ingressTime = System.nanoTime();
+        ingressNanos.set(ingressTime);
         try {
             String msgType = message.getHeader().getString(35);
             if (!"0".equals(msgType) && !"1".equals(msgType) && !"D".equals(msgType)) {
@@ -79,6 +82,8 @@ public class OrderApplication extends MessageCracker implements Application {
             e.printStackTrace();
         } catch (Exception e) {
             e.printStackTrace();
+        } finally {
+            ingressNanos.remove();
         }
     }
 
@@ -129,7 +134,7 @@ public class OrderApplication extends MessageCracker implements Application {
             if (!validSecurities.containsKey(symKey)) {
                 System.out.println("[OrderApplication] Reject: symbol key='" + symKey + "' not in map (size="
                         + validSecurities.size() + "). Restart or reconnect FIX after changing security_master.");
-                server.sendSessionReject(incoming, sessionId, "Unknown Security");
+                sendRejectResponse(incoming, sessionId, "Unknown Security", currentIngressTime());
                 return;
             }
             Order order = new Order(clOrdID, symbol, side, price, quantity, "NEW");
@@ -148,12 +153,12 @@ public class OrderApplication extends MessageCracker implements Application {
                         System.err.println("[OrderApplication] dbQueue full, execution not queued: " + trade.getExecId());
                     }
                     server.sendTradeUpdate(trade);
-                    sendFillReport(trade, sessionId);
+                    sendFillReport(trade, sessionId, currentIngressTime());
                 }
             }
 
             if (trades.isEmpty() || order.getQuantity() > 0) {
-                server.acceptOrder(order, sessionId);
+                sendAcceptOrder(order, sessionId, currentIngressTime());
             }
         } catch (Exception e) {
             System.err.println("[OrderApplication] Failed to process order message!");
@@ -161,7 +166,7 @@ public class OrderApplication extends MessageCracker implements Application {
         }
     }
 
-    private void sendFillReport(Execution trade, SessionID sessionId) {
+    private void sendFillReport(Execution trade, SessionID sessionId, long ingressTime) {
         try {
             ExecutionReport fixTrade = new ExecutionReport();
             fixTrade.set(new OrderID(trade.getOrderId()));
@@ -178,9 +183,31 @@ public class OrderApplication extends MessageCracker implements Application {
             fixTrade.set(new CumQty(trade.getQuantity()));
             fixTrade.set(new LeavesQty(0));
             Session.sendToTarget(fixTrade, sessionId);
+            recordLatency(ingressTime);
         } catch (Exception e) {
             System.err.println("[OrderApplication] Failed to send fill report for execution " + trade.getExecId());
             e.printStackTrace();
         }
+    }
+
+    private void sendAcceptOrder(Order order, SessionID sessionId, long ingressTime) {
+        server.acceptOrder(order, sessionId);
+        recordLatency(ingressTime);
+    }
+
+    private void sendRejectResponse(Message incoming, SessionID sessionId, String reason, long ingressTime) {
+        server.sendSessionReject(incoming, sessionId, reason);
+        recordLatency(ingressTime);
+    }
+
+    private long currentIngressTime() {
+        Long ingress = ingressNanos.get();
+        return ingress == null ? System.nanoTime() : ingress.longValue();
+    }
+
+    private void recordLatency(long ingressTime) {
+        long egressTime = System.nanoTime();
+        long latency = egressTime - ingressTime;
+        PerformanceMonitor.recordLatency(latency);
     }
 }
