@@ -29,7 +29,7 @@ public class AppLauncher {
             System.out.println("user.dir=" + System.getProperty("user.dir"));
             JdbcOrderStore.verifyConnection();
 
-            BlockingQueue<Order> dbQueue = new LinkedBlockingQueue<>();
+            BlockingQueue<Object> dbQueue = new LinkedBlockingQueue<>();
 
             OrderPersister persister = new OrderPersister(dbQueue);
             Thread persisterThread = new Thread(persister, "OrderPersister");

@@ -2,6 +2,7 @@ package OrderService;
 
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
@@ -14,16 +15,31 @@ import quickfix.Message;
 import quickfix.SessionID;
 import quickfix.MessageCracker;
 import quickfix.UnsupportedMessageType;
+import quickfix.Session;
+import quickfix.field.ClOrdID;
+import quickfix.field.CumQty;
+import quickfix.field.ExecID;
+import quickfix.field.ExecType;
+import quickfix.field.ExecTransType;
+import quickfix.field.LastShares;
+import quickfix.field.LastPx;
+import quickfix.field.LeavesQty;
+import quickfix.field.OrdStatus;
+import quickfix.field.OrderQty;
+import quickfix.field.OrderID;
+import quickfix.field.Side;
+import quickfix.field.Symbol;
 import quickfix.fix42.NewOrderSingle;
+import quickfix.fix42.ExecutionReport;
 
 public class OrderApplication extends MessageCracker implements Application {
 
     private final OrderBroadcaster server;
-    private final BlockingQueue<Order> dbQueue;
+    private final BlockingQueue<Object> dbQueue;
     private final Map<String, Security> validSecurities = new HashMap<>();
     private final Map<String, OrderBook> booksBySymbol = new ConcurrentHashMap<>();
 
-    public OrderApplication(OrderBroadcaster server, BlockingQueue<Order> dbQueue) {
+    public OrderApplication(OrderBroadcaster server, BlockingQueue<Object> dbQueue) {
         this.server = server;
         this.dbQueue = dbQueue;
     }
@@ -119,17 +135,51 @@ public class OrderApplication extends MessageCracker implements Application {
             Order order = new Order(clOrdID, symbol, side, price, quantity, "NEW");
 
             OrderBook book = booksBySymbol.computeIfAbsent(symKey, k -> new OrderBook(k));
-            java.util.List<Execution> trades = book.match(order);
-            if (!trades.isEmpty()) {
-                System.out.println("[OrderApplication] Trades generated for " + symKey + ": " + trades.size());
-            }
-
-            server.acceptOrder(order, sessionId);
+            List<Execution> trades = book.match(order);
             if (!dbQueue.offer(order)) {
                 System.err.println("[OrderApplication] dbQueue full, order not queued: " + clOrdID);
+                return;
+            }
+
+            if (!trades.isEmpty()) {
+                System.out.println("[OrderApplication] Trades generated for " + symKey + ": " + trades.size());
+                for (Execution trade : trades) {
+                    if (!dbQueue.offer(trade)) {
+                        System.err.println("[OrderApplication] dbQueue full, execution not queued: " + trade.getExecId());
+                    }
+                    server.sendTradeUpdate(trade);
+                    sendFillReport(trade, sessionId);
+                }
+            }
+
+            if (trades.isEmpty() || order.getQuantity() > 0) {
+                server.acceptOrder(order, sessionId);
             }
         } catch (Exception e) {
             System.err.println("[OrderApplication] Failed to process order message!");
+            e.printStackTrace();
+        }
+    }
+
+    private void sendFillReport(Execution trade, SessionID sessionId) {
+        try {
+            ExecutionReport fixTrade = new ExecutionReport();
+            fixTrade.set(new OrderID(trade.getOrderId()));
+            fixTrade.set(new ExecID(trade.getExecId()));
+            fixTrade.set(new ExecTransType(ExecTransType.NEW));
+            fixTrade.set(new ExecType(ExecType.TRADE));
+            fixTrade.set(new OrdStatus(OrdStatus.FILLED));
+            fixTrade.set(new ClOrdID(trade.getIncomingClOrdID()));
+            fixTrade.set(new Symbol(trade.getSymbol()));
+            fixTrade.set(new Side(trade.getSide()));
+            fixTrade.set(new OrderQty(trade.getQuantity()));
+            fixTrade.set(new LastPx(trade.getPrice()));
+            fixTrade.set(new LastShares(trade.getQuantity()));
+            fixTrade.set(new CumQty(trade.getQuantity()));
+            fixTrade.set(new LeavesQty(0));
+            Session.sendToTarget(fixTrade, sessionId);
+        } catch (Exception e) {
+            System.err.println("[OrderApplication] Failed to send fill report for execution " + trade.getExecId());
             e.printStackTrace();
         }
     }

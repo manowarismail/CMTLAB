@@ -4,9 +4,9 @@ import java.util.concurrent.BlockingQueue;
 
 public class OrderPersister implements Runnable {
 
-    private final BlockingQueue<Order> dbQueue;
+    private final BlockingQueue<Object> dbQueue;
 
-    public OrderPersister(BlockingQueue<Order> dbQueue) {
+    public OrderPersister(BlockingQueue<Object> dbQueue) {
         this.dbQueue = dbQueue;
     }
 
@@ -16,9 +16,18 @@ public class OrderPersister implements Runnable {
 
         while (true) {
             try {
-                Order order = dbQueue.take(); // blocks until an order is available
-                System.out.println("[OrderPersister] Persisting order: " + order.getClOrdID());
-                JdbcOrderStore.insertOrder(order);
+                Object item = dbQueue.take(); // blocks until work is available
+                if (item instanceof Order) {
+                    Order order = (Order) item;
+                    System.out.println("[OrderPersister] Persisting order: " + order.getClOrdID());
+                    JdbcOrderStore.insertOrder(order);
+                } else if (item instanceof Execution) {
+                    Execution execution = (Execution) item;
+                    System.out.println("[OrderPersister] Persisting execution: " + execution.getExecId());
+                    JdbcOrderStore.insertExecution(execution);
+                } else {
+                    System.err.println("[OrderPersister] Unknown queue item type: " + item);
+                }
             } catch (InterruptedException e) {
                 System.err.println("[OrderPersister] Interrupted!");
                 e.printStackTrace();

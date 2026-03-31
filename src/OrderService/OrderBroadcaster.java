@@ -117,8 +117,30 @@ public class OrderBroadcaster extends WebSocketServer {
         if (connections == 0) {
             return;
         }
-        String json = gson.toJson(order);
-        System.out.println("[UI] broadcast " + order.getClOrdID() + " to " + connections + " client(s)");
+        MessageEnvelope envelope = new MessageEnvelope("ORDER", order);
+        String json = gson.toJson(envelope);
+        System.out.println("[UI] broadcast ORDER " + order.getClOrdID() + " to " + connections + " client(s)");
         broadcast(json);
+    }
+
+    public void sendTradeUpdate(Execution trade) {
+        int connections = getConnections().size();
+        if (connections == 0) {
+            return;
+        }
+        MessageEnvelope envelope = new MessageEnvelope("TRADE", trade);
+        String json = gson.toJson(envelope);
+        System.out.println("[UI] trade update " + trade.getExecId() + " to " + connections + " client(s)");
+        broadcast(json);
+    }
+
+    private static final class MessageEnvelope {
+        private final String type;
+        private final Object data;
+
+        MessageEnvelope(String type, Object data) {
+            this.type = type;
+            this.data = data;
+        }
     }
 }

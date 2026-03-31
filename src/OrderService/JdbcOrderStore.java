@@ -195,6 +195,30 @@ public final class JdbcOrderStore {
         }
     }
 
+    public static void insertExecution(Execution execution) {
+        String sql = "INSERT INTO executions (exec_id, order_id, symbol, side, exec_qty, exec_price) "
+                + "VALUES (?, ?, ?, ?, ?, ?)";
+        try (Connection conn = openConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            conn.setAutoCommit(true);
+            pstmt.setString(1, execution.getExecId());
+            pstmt.setString(2, execution.getOrderId());
+            pstmt.setString(3, execution.getSymbol());
+            pstmt.setString(4, String.valueOf(execution.getSide()));
+            pstmt.setDouble(5, execution.getQuantity());
+            pstmt.setDouble(6, execution.getPrice());
+            int rows = pstmt.executeUpdate();
+            if (rows > 0) {
+                System.out.println("[JdbcOrderStore] Execution persisted: " + execution.getExecId());
+            } else {
+                System.err.println("[JdbcOrderStore] Insert execution returned 0 rows: " + execution.getExecId());
+            }
+        } catch (SQLException e) {
+            System.err.println("[JdbcOrderStore] SQLException for execution: " + execution.getExecId());
+            logSql(e);
+        }
+    }
+
     static void logSql(SQLException e) {
         for (SQLException x = e; x != null; x = x.getNextException()) {
             System.err.println("[JdbcOrderStore] SQLState=" + x.getSQLState() + " code=" + x.getErrorCode() + " msg=" + x.getMessage());
