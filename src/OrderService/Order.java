@@ -9,7 +9,7 @@ public class Order {
     private final String symbol;
     private final char side;       // 'B' or 'S'
     private final double price;
-    private final double quantity;
+    private double quantity;
     private final String status;
 
     // Constructor
@@ -31,6 +31,13 @@ public class Order {
     public double getPrice() { return price; }
     public double getQuantity() { return quantity; }
     public String getStatus() { return status; }
+
+    public void reduceQty(double qty) {
+        if (qty <= 0) {
+            return;
+        }
+        quantity = Math.max(0.0, quantity - qty);
+    }
 
     @Override
     public String toString() {

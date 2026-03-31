@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 
 import quickfix.Application;
 import quickfix.FieldNotFound;
@@ -20,6 +21,7 @@ public class OrderApplication extends MessageCracker implements Application {
     private final OrderBroadcaster server;
     private final BlockingQueue<Order> dbQueue;
     private final Map<String, Security> validSecurities = new HashMap<>();
+    private final Map<String, OrderBook> booksBySymbol = new ConcurrentHashMap<>();
 
     public OrderApplication(OrderBroadcaster server, BlockingQueue<Order> dbQueue) {
         this.server = server;
@@ -115,6 +117,13 @@ public class OrderApplication extends MessageCracker implements Application {
                 return;
             }
             Order order = new Order(clOrdID, symbol, side, price, quantity, "NEW");
+
+            OrderBook book = booksBySymbol.computeIfAbsent(symKey, k -> new OrderBook(k));
+            java.util.List<Execution> trades = book.match(order);
+            if (!trades.isEmpty()) {
+                System.out.println("[OrderApplication] Trades generated for " + symKey + ": " + trades.size());
+            }
+
             server.acceptOrder(order, sessionId);
             if (!dbQueue.offer(order)) {
                 System.err.println("[OrderApplication] dbQueue full, order not queued: " + clOrdID);
